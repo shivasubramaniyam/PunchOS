@@ -1,0 +1,28 @@
+{
+  "name": "qr-attendance-system",
+  "version": "1.0.0",
+  "description": "Full-stack TypeScript QR Attendance System with Next.js, Express, Prisma, and WebAuthn Biometric Punch Protocol",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix server run dev",
+    "dev:server": "npm --prefix server run dev",
+    "dev:dashboard": "npm --prefix dashboard run dev",
+    "dev:pwa": "npm --prefix punch-pwa run dev",
+    "build": "npm --prefix protocol run build && npm --prefix server run build",
+    "build:all": "npm --prefix protocol run build && npm --prefix server run build && npm --prefix dashboard run build && npm --prefix punch-pwa run build",
+    "seed": "npm --prefix server run seed",
+    "db:push": "npm --prefix server run db:push",
+    "db:generate": "npm --prefix server run db:generate",
+    "test": "npm --prefix protocol test"
+  },
+  "keywords": [
+    "attendance",
+    "qr-code",
+    "webauthn",
+    "passkeys",
+    "typescript",
+    "express",
+    "prisma",
+    "nextjs"
+  ]
+}

@@ -1,0 +1,104 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Branch {
+  id       Int       @id @default(autoincrement())
+  branch   String    @unique
+  students Student[]
+}
+
+model Year {
+  id       Int       @id @default(autoincrement())
+  year     Int       @unique
+  students Student[]
+}
+
+model Section {
+  id       Int       @id @default(autoincrement())
+  section  String    @unique
+  students Student[]
+}
+
+model Student {
+  roll       String   @id
+  firstName  String
+  lastName   String
+  branchId   Int
+  yearId     Int
+  sectionId  Int
+
+  branch     Branch   @relation(fields: [branchId], references: [id])
+  year       Year     @relation(fields: [yearId], references: [id])
+  section    Section  @relation(fields: [sectionId], references: [id])
+
+  attendances Attendance[]
+  punchKeys   PunchKey[]
+  passkeys    PasskeyCredential[]
+  events      PunchEvent[]
+}
+
+model Attendance {
+  id        Int      @id @default(autoincrement())
+  studentId String
+  date      DateTime
+  markedAt  DateTime @default(now())
+  method    String   @default("qr") // "qr" | "manual"
+
+  student   Student  @relation(fields: [studentId], references: [roll], onDelete: Cascade)
+
+  @@unique([studentId, date], name: "unique_student_attendance_per_day")
+}
+
+model PunchKey {
+  id             Int       @id @default(autoincrement())
+  studentId      String
+  keyId          String    @unique
+  publicJwk      String
+  label          String    @default("This phone")
+  aaguid         String    @default("")
+  hardwareBacked Boolean   @default(false)
+  trustTier      Int       @default(0)
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  student        Student   @relation(fields: [studentId], references: [roll], onDelete: Cascade)
+}
+
+model PasskeyCredential {
+  id           Int      @id @default(autoincrement())
+  studentId    String
+  credentialId String   @unique
+  publicJwk    String
+  aaguid       String   @default("")
+  signCount    BigInt   @default(0)
+  createdAt    DateTime @default(now())
+
+  student      Student  @relation(fields: [studentId], references: [roll], onDelete: Cascade)
+}
+
+model PunchSession {
+  id       Int       @id @default(autoincrement())
+  branch   String    @default("")
+  year     Int?
+  section  String    @default("")
+  openedAt DateTime  @default(now())
+  closedAt DateTime?
+}
+
+model PunchEvent {
+  id        Int      @id @default(autoincrement())
+  studentId String
+  slot      BigInt
+  nonce     String   @default("")
+  outcome   String   // "ok" | "duplicate" | "replay" | "stale"
+  createdAt DateTime @default(now())
+
+  student   Student  @relation(fields: [studentId], references: [roll], onDelete: Cascade)
+}
+
