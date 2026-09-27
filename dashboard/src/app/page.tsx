@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { QrCode, Wifi, WifiOff, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { QrCode, Wifi, WifiOff, ShieldCheck, BookOpen } from "lucide-react";
 import Charts from "@/components/Charts";
 import LiveFeed from "@/components/LiveFeed";
 import PunchScanner from "@/components/PunchScanner";
@@ -175,11 +176,20 @@ export default function DashboardPage() {
           {/* Merkle Root Transparency Audit Trigger */}
           <button
             onClick={() => setIsMerkleModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 px-3 py-1.5 text-xs font-semibold text-teal-300 hover:bg-teal-500/20 hover:border-teal-500/50 transition-all shadow-sm"
+            className="flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 px-3 py-1.5 text-xs font-semibold text-teal-300 hover:bg-teal-500/20 hover:border-teal-500/50 transition-all shadow-sm cursor-pointer"
           >
             <ShieldCheck className="h-4 w-4 text-teal-400" />
             Audit Merkle Tree
           </button>
+
+          {/* Interactive Help & Learning Center */}
+          <Link
+            href="/help"
+            className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500/60 transition-all shadow-sm"
+          >
+            <BookOpen className="h-4 w-4 text-emerald-400" />
+            🎓 Help &amp; Learn Center
+          </Link>
 
           {/* Link to Student PWA */}
           <a
