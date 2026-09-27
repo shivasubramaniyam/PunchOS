@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import { prisma } from "../db.js";
 import { broadcast } from "../services/events.js";
+import { dispatchWebhook } from "../services/webhook.js";
 
 const router = Router();
 
@@ -602,6 +603,7 @@ router.post("/verify", async (req: Request, res: Response) => {
     };
 
     broadcast("attendance.marked", record);
+    dispatchWebhook("attendance.marked", record, student.orgId ?? undefined);
 
     res.json({
       ok: true,

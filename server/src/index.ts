@@ -10,6 +10,7 @@ import attendanceRouter from "./routes/attendance.js";
 import statsRouter from "./routes/stats.js";
 import qrRouter from "./routes/qr.js";
 import punchRouter from "./routes/punch.js";
+import webhooksRouter from "./routes/webhooks.js";
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "8000", 10);
@@ -50,6 +51,7 @@ app.use("/api/attendance", attendanceRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/qr", qrRouter);
 app.use("/api/punch", punchRouter);
+app.use("/api/webhooks", webhooksRouter);
 
 // 4. Root API endpoint info
 app.get("/", (_req: Request, res: Response) => {
