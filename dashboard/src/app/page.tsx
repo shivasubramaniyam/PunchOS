@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { QrCode, Wifi, WifiOff, ShieldCheck, BookOpen } from "lucide-react";
+import { QrCode, Wifi, WifiOff, ShieldCheck, BookOpen, Code2 } from "lucide-react";
 import Charts from "@/components/Charts";
 import LiveFeed from "@/components/LiveFeed";
 import PunchScanner from "@/components/PunchScanner";
@@ -10,6 +10,7 @@ import StatCards from "@/components/StatCards";
 import StudentManager from "@/components/StudentManager";
 import OrgModeSwitcher, { ORG_MODES, type OrgMode } from "@/components/OrgModeSwitcher";
 import MerkleAuditModal from "@/components/MerkleAuditModal";
+import EmbedSdkModal from "@/components/embed/EmbedSdkModal";
 import { api, API_BASE } from "@/lib/api";
 import { useLiveEvents } from "@/lib/useLiveEvents";
 import type { AttendanceRecord, LiveEvent, Stats, Student } from "@/lib/types";
@@ -22,6 +23,7 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [orgMode, setOrgMode] = useState<OrgMode>("campus");
   const [isMerkleModalOpen, setIsMerkleModalOpen] = useState(false);
+  const [isEmbedModalOpen, setIsEmbedModalOpen] = useState(false);
 
   const todayFormatted = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -182,6 +184,15 @@ export default function DashboardPage() {
             Audit Merkle Tree
           </button>
 
+          {/* Embed SDK / Widget Modal Trigger */}
+          <button
+            onClick={() => setIsEmbedModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50 transition-all shadow-sm cursor-pointer"
+          >
+            <Code2 className="h-4 w-4 text-purple-400" />
+            📦 Embed SDK
+          </button>
+
           {/* Interactive Help & Learning Center */}
           <Link
             href="/help"
@@ -243,6 +254,13 @@ export default function DashboardPage() {
       <MerkleAuditModal
         isOpen={isMerkleModalOpen}
         onClose={() => setIsMerkleModalOpen(false)}
+      />
+
+      {/* Plug & Play SDK / Web Component Modal */}
+      <EmbedSdkModal
+        isOpen={isEmbedModalOpen}
+        onClose={() => setIsEmbedModalOpen(false)}
+        currentOrgSlug={orgMode}
       />
     </main>
   );
