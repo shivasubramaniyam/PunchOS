@@ -14,9 +14,34 @@ import {
   Zap,
   Sparkles,
   Upload,
+  Wifi,
+  WifiOff,
+  RotateCcw,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import type { AttendanceRecord } from "@/lib/types";
+
+interface CachedKey {
+  keyId: string;
+  studentId: string;
+  name: string;
+  role: string;
+  org: string;
+  branch: string;
+  year: number | null;
+  section: string;
+  publicJwk: JsonWebKey;
+}
+
+interface OfflinePunch {
+  id: string;
+  roll: string;
+  name: string;
+  slot: number;
+  punchType: string;
+  date: string;
+  markedAt: string;
+}
 
 interface PunchScannerProps {
   onScanSuccess?: (record: AttendanceRecord) => void;
@@ -37,6 +62,12 @@ export default function PunchScanner({ onScanSuccess }: PunchScannerProps) {
   const [scanError, setScanError] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState("");
 
+  // Offline Verification & Key Caching State
+  const [offlineMode, setOfflineMode] = useState(false);
+  const [cachedKeys, setCachedKeys] = useState<Record<string, CachedKey>>({});
+  const [offlineQueue, setOfflineQueue] = useState<OfflinePunch[]>([]);
+  const [syncingOffline, setSyncingOffline] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -47,6 +78,169 @@ export default function PunchScanner({ onScanSuccess }: PunchScannerProps) {
     token: "",
     time: 0,
   });
+
+  // Load and cache public keys directory for offline scanning
+  const refreshKeyCache = useCallback(() => {
+    fetch(`${API_BASE}/api/punch/keys-directory`)
+      .then((r) => r.json())
+      .then((data: { keys?: CachedKey[] }) => {
+        if (Array.isArray(data.keys)) {
+          const map: Record<string, CachedKey> = {};
+          data.keys.forEach((k) => {
+            map[k.keyId] = k;
+          });
+          setCachedKeys(map);
+          try {
+            localStorage.setItem("punch_cached_keys", JSON.stringify(map));
+          } catch {
+            // Storage quota
+          }
+        }
+      })
+      .catch(() => {
+        // Load fallback from localStorage if server unreachable
+        try {
+          const saved = localStorage.getItem("punch_cached_keys");
+          if (saved) setCachedKeys(JSON.parse(saved));
+        } catch {
+          // Ignore
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    refreshKeyCache();
+    try {
+      const q = localStorage.getItem("punch_offline_queue");
+      if (q) setOfflineQueue(JSON.parse(q));
+    } catch {
+      // Ignore
+    }
+  }, [refreshKeyCache]);
+
+  // Client-Side Offline ES256 Signature Verification via WebCrypto
+  const verifyOffline = useCallback(
+    async (rawQr: string): Promise<AttendanceRecord> => {
+      const jws = rawQr.replace("punch.v1:", "");
+      const parts = jws.split(".");
+      if (parts.length !== 3) throw new Error("Malformed JWS token structure");
+
+      const [headB64, payloadB64, sigB64] = parts;
+      const payload = JSON.parse(
+        atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/"))
+      );
+      const { kid, sid, slot } = payload;
+
+      const cachedKey = cachedKeys[kid];
+      if (!cachedKey) {
+        throw new Error(
+          `Public key (${kid.slice(0, 8)}...) not found in local offline cache. Please sync keys while online.`
+        );
+      }
+
+      // Check slot window (allow 1 slot back)
+      const currentSlot = Math.floor(Date.now() / 1000 / 3);
+      if (slot !== currentSlot && slot !== currentSlot - 1) {
+        throw new Error("Offline Punch slot expired or out of 3-second window");
+      }
+
+      // Verify ECDSA P-256 signature using browser WebCrypto
+      const key = await crypto.subtle.importKey(
+        "jwk",
+        cachedKey.publicJwk,
+        { name: "ECDSA", namedCurve: "P-256" },
+        false,
+        ["verify"]
+      );
+
+      const signingInput = `${headB64}.${payloadB64}`;
+      const sigBin = atob(sigB64.replace(/-/g, "+").replace(/_/g, "/"));
+      const sigBytes = new Uint8Array(sigBin.length);
+      for (let i = 0; i < sigBin.length; i++) sigBytes[i] = sigBin.charCodeAt(i);
+
+      const isValid = await crypto.subtle.verify(
+        { name: "ECDSA", hash: "SHA-256" },
+        key,
+        sigBytes,
+        new TextEncoder().encode(signingInput)
+      );
+
+      if (!isValid) {
+        throw new Error("Cryptographic ES256 signature validation failed locally");
+      }
+
+      const roll = sid.includes(":") ? sid.split(":")[sid.split(":").length - 1] : sid;
+      const todayIso = new Date().toISOString().split("T")[0];
+      const nowIso = new Date().toISOString();
+
+      const offlineRecord: AttendanceRecord = {
+        id: Math.floor(Date.now() % 1000000),
+        roll,
+        name: cachedKey.name,
+        role: cachedKey.role,
+        org: cachedKey.org,
+        branch: cachedKey.branch,
+        year: cachedKey.year,
+        section: cachedKey.section,
+        date: todayIso,
+        markedAt: nowIso,
+        method: "offline_sync",
+        punchType: "in",
+      };
+
+      // Queue punch locally
+      const offlinePunch: OfflinePunch = {
+        id: `${roll}-${Date.now()}`,
+        roll,
+        name: cachedKey.name,
+        slot,
+        punchType: "in",
+        date: todayIso,
+        markedAt: nowIso,
+      };
+
+      setOfflineQueue((prev) => {
+        const next = [offlinePunch, ...prev];
+        try {
+          localStorage.setItem("punch_offline_queue", JSON.stringify(next));
+        } catch {
+          // Ignore
+        }
+        return next;
+      });
+
+      return offlineRecord;
+    },
+    [cachedKeys]
+  );
+
+  // Sync queued offline punches to backend
+  const syncOfflinePunches = useCallback(async () => {
+    if (offlineQueue.length === 0 || syncingOffline) return;
+    setSyncingOffline(true);
+    setScanError(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/punch/sync-offline-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ punches: offlineQueue }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setOfflineQueue([]);
+        try {
+          localStorage.removeItem("punch_offline_queue");
+        } catch {
+          // Ignore
+        }
+      }
+    } catch {
+      setScanError("Failed to sync offline queue. Ensure backend is reachable.");
+    } finally {
+      setSyncingOffline(false);
+    }
+  }, [offlineQueue, syncingOffline]);
 
   // Synthesize audio feedback chime
   const playChime = useCallback((success: boolean) => {
@@ -98,15 +292,28 @@ export default function PunchScanner({ onScanSuccess }: PunchScannerProps) {
       setScanError(null);
 
       try {
-        const res = await api.verifyPunch(rawQr);
-        if (res.ok && res.student) {
+        if (offlineMode) {
+          // Offline Local Client-Side Verification
+          const record = await verifyOffline(rawQr);
           setLastScanned({
-            student: res.student,
-            slot: res.slot,
+            student: record,
+            slot: Math.floor(now / 1000 / 3),
             timestamp: Date.now(),
           });
           playChime(true);
-          onScanSuccess?.(res.student);
+          onScanSuccess?.(record);
+        } else {
+          // Online Backend Verification
+          const res = await api.verifyPunch(rawQr);
+          if (res.ok && res.student) {
+            setLastScanned({
+              student: res.student,
+              slot: res.slot,
+              timestamp: Date.now(),
+            });
+            playChime(true);
+            onScanSuccess?.(res.student);
+          }
         }
       } catch (err: unknown) {
         const message =
@@ -117,7 +324,7 @@ export default function PunchScanner({ onScanSuccess }: PunchScannerProps) {
         setVerifying(false);
       }
     },
-    [verifying, playChime, onScanSuccess]
+    [verifying, offlineMode, verifyOffline, playChime, onScanSuccess]
   );
 
   const scanFrame = useCallback(() => {
@@ -312,6 +519,48 @@ export default function PunchScanner({ onScanSuccess }: PunchScannerProps) {
                 </option>
               ))}
             </select>
+          )}
+
+          {/* Offline Mode Kiosk Toggle */}
+          <button
+            type="button"
+            onClick={() => setOfflineMode((v) => !v)}
+            className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+              offlineMode
+                ? "border-amber-500/50 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40"
+                : "border-zinc-800 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200"
+            }`}
+            title={
+              offlineMode
+                ? "Offline Kiosk Mode active (verifies using local cached keys)"
+                : "Switch to Offline Kiosk Mode"
+            }
+          >
+            {offlineMode ? (
+              <>
+                <WifiOff className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                <span>Offline Kiosk</span>
+              </>
+            ) : (
+              <>
+                <Wifi className="h-3.5 w-3.5 text-zinc-500" />
+                <span className="hidden sm:inline">Online API</span>
+              </>
+            )}
+          </button>
+
+          {/* Sync Offline Queue Button (visible if punches queued) */}
+          {offlineQueue.length > 0 && (
+            <button
+              type="button"
+              onClick={syncOfflinePunches}
+              disabled={syncingOffline}
+              className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-bold text-amber-300 hover:bg-amber-500/20 transition-all flex items-center gap-1 cursor-pointer animate-pulse"
+              title="Sync queued offline punches to backend"
+            >
+              <RotateCcw className={`h-3.5 w-3.5 ${syncingOffline ? "animate-spin" : ""}`} />
+              Sync ({offlineQueue.length})
+            </button>
           )}
 
           <button

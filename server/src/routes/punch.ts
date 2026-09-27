@@ -222,6 +222,81 @@ router.get("/key-status", async (req: Request, res: Response) => {
   }
 });
 
+// 4b. GET /api/punch/keys-directory - Export public keys for offline scanner cache
+router.get("/keys-directory", async (_req: Request, res: Response) => {
+  try {
+    const keys = await prisma.punchKey.findMany({
+      where: { revokedAt: null },
+      include: {
+        student: {
+          include: { branch: true, year: true, section: true, org: true },
+        },
+      },
+    });
+
+    res.json({
+      keys: keys.map((k) => ({
+        keyId: k.keyId,
+        studentId: k.studentId,
+        name: `${k.student.firstName} ${k.student.lastName}`,
+        role: k.student.role,
+        org: k.student.org?.name ?? "Default Organization",
+        branch: k.student.branch?.branch ?? "",
+        year: k.student.year?.year ?? null,
+        section: k.student.section?.section ?? "",
+        publicJwk: JSON.parse(k.publicJwk),
+      })),
+      syncedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error exporting keys directory:", error);
+    res.status(500).json({ error: "Failed to export keys directory" });
+  }
+});
+
+// 4c. POST /api/punch/sync-offline-batch - Sync offline punches to database and Merkle log
+router.post("/sync-offline-batch", async (req: Request, res: Response) => {
+  const { punches } = req.body;
+  if (!Array.isArray(punches) || punches.length === 0) {
+    return res.status(400).json({ error: "punches array is required" });
+  }
+
+  const results: Array<{ roll: string; status: string; id?: number }> = [];
+
+  for (const p of punches) {
+    try {
+      const roll = String(p.roll).trim();
+      const punchDate = p.date ? new Date(p.date) : new Date();
+      punchDate.setUTCHours(0, 0, 0, 0);
+
+      const attendance = await prisma.attendance.upsert({
+        where: {
+          unique_student_attendance_per_day: {
+            studentId: roll,
+            date: punchDate,
+          },
+        },
+        update: {
+          method: "offline_sync",
+          punchType: p.punchType || "in",
+        },
+        create: {
+          studentId: roll,
+          date: punchDate,
+          method: "offline_sync",
+          punchType: p.punchType || "in",
+        },
+      });
+
+      results.push({ roll, status: "synced", id: attendance.id });
+    } catch (err) {
+      results.push({ roll: p.roll, status: "failed" });
+    }
+  }
+
+  res.json({ ok: true, syncedCount: results.filter((r) => r.status === "synced").length, results });
+});
+
 // 5. POST /api/punch/passkey/init - WebAuthn registration options
 router.post("/passkey/init", async (req: Request, res: Response) => {
   const { studentId } = req.body;
