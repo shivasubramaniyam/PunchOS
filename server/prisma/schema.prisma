@@ -7,6 +7,33 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model Organization {
+  id          String       @id @default(uuid())
+  slug        String       @unique // e.g. "campus", "tech-corp", "city-hospital", "apex-events"
+  name        String
+  category    String       @default("general") // "campus" | "corporate" | "healthcare" | "events" | "field"
+  description String?
+  punchLabel  String       @default("Badge Punch") // "Roll Call" | "Clock In/Out" | "Duty Sign-In" | "VIP Badge"
+  settings    String?      // JSON configuration for shifts, geofence, tolerances
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  departments Department[]
+  students    Student[]
+  webhooks    WebhookConfig[]
+}
+
+model Department {
+  id             Int          @id @default(autoincrement())
+  orgId          String
+  name           String       // "Engineering", "Cardiology", "CSE", "Operations"
+  code           String?      // "ENG", "CARD", "CSE-01"
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  students       Student[]
+}
+
 model Branch {
   id       Int       @id @default(autoincrement())
   branch   String    @unique
@@ -26,31 +53,44 @@ model Section {
 }
 
 model Student {
-  roll       String   @id
-  firstName  String
-  lastName   String
-  branchId   Int
-  yearId     Int
-  sectionId  Int
+  roll         String   @id // Universal Subject/Member ID (Roll No, Employee ID, Badge ID)
+  firstName    String
+  lastName     String
+  email        String?
+  role         String   @default("member") // "student" | "employee" | "doctor" | "contractor" | "delegate"
+  branchId     Int?
+  yearId       Int?
+  sectionId    Int?
+  orgId        String?
+  departmentId Int?
 
-  branch     Branch   @relation(fields: [branchId], references: [id])
-  year       Year     @relation(fields: [yearId], references: [id])
-  section    Section  @relation(fields: [sectionId], references: [id])
+  organization Department?   @relation(fields: [departmentId], references: [id])
+  org          Organization? @relation(fields: [orgId], references: [id])
+  branch       Branch?       @relation(fields: [branchId], references: [id])
+  year         Year?         @relation(fields: [yearId], references: [id])
+  section      Section?      @relation(fields: [sectionId], references: [id])
 
-  attendances Attendance[]
-  punchKeys   PunchKey[]
-  passkeys    PasskeyCredential[]
-  events      PunchEvent[]
+  attendances  Attendance[]
+  punchKeys    PunchKey[]
+  passkeys     PasskeyCredential[]
+  events       PunchEvent[]
 }
 
 model Attendance {
-  id        Int      @id @default(autoincrement())
-  studentId String
-  date      DateTime
-  markedAt  DateTime @default(now())
-  method    String   @default("qr") // "qr" | "manual"
+  id              Int       @id @default(autoincrement())
+  studentId       String
+  date            DateTime
+  markedAt        DateTime  @default(now())
+  method          String    @default("qr") // "qr" | "manual" | "offline_sync"
+  punchType       String    @default("checkin") // "in" | "out" | "checkin"
+  checkInTime     DateTime?
+  checkOutTime    DateTime?
+  durationMinutes Int?
+  location        String?
+  latitude        Float?
+  longitude       Float?
 
-  student   Student  @relation(fields: [studentId], references: [roll], onDelete: Cascade)
+  student         Student   @relation(fields: [studentId], references: [roll], onDelete: Cascade)
 
   @@unique([studentId, date], name: "unique_student_attendance_per_day")
 }
@@ -84,6 +124,7 @@ model PasskeyCredential {
 
 model PunchSession {
   id       Int       @id @default(autoincrement())
+  orgId    String?
   branch   String    @default("")
   year     Int?
   section  String    @default("")
@@ -96,9 +137,35 @@ model PunchEvent {
   studentId String
   slot      BigInt
   nonce     String   @default("")
-  outcome   String   // "ok" | "duplicate" | "replay" | "stale"
+  outcome   String   // "ok" | "duplicate" | "replay" | "stale" | "offline_sync"
+  punchType String   @default("checkin") // "in" | "out" | "checkin"
   createdAt DateTime @default(now())
 
   student   Student  @relation(fields: [studentId], references: [roll], onDelete: Cascade)
 }
 
+model WebhookConfig {
+  id          Int               @id @default(autoincrement())
+  orgId       String?
+  url         String
+  secret      String
+  events      String            @default("punch.verified,attendance.marked")
+  active      Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  org         Organization?     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  deliveries  WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id          Int           @id @default(autoincrement())
+  webhookId   Int
+  event       String
+  statusCode  Int
+  payload     String
+  response    String?
+  deliveredAt DateTime      @default(now())
+
+  webhook     WebhookConfig @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+}
