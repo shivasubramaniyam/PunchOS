@@ -380,18 +380,20 @@ router.post("/verify", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Incomplete punch payload" });
     }
 
-    // Extract student roll from sid (format: "punch:local:<roll>" or "<roll>")
-    const roll = sid.startsWith("punch:local:")
-      ? sid.replace("punch:local:", "")
-      : sid;
+    // Extract student/member roll from sid (supports "punch:TRUSTGRID:<roll>", "punch:local:<roll>", or "<roll>")
+    let roll = sid;
+    if (sid.includes(":")) {
+      const parts = sid.split(":");
+      roll = parts[parts.length - 1];
+    }
 
     const student = await prisma.student.findUnique({
       where: { roll },
-      include: { branch: true, year: true, section: true },
+      include: { org: true, branch: true, year: true, section: true },
     });
 
     if (!student) {
-      return res.status(404).json({ error: "Student not found" });
+      return res.status(404).json({ error: "Student/Member identity not found in roster" });
     }
 
     // Lookup public key
@@ -444,9 +446,35 @@ router.post("/verify", async (req: Request, res: Response) => {
       }
     }
 
-    // Mark attendance for today
+    // Shift & Clock-In / Clock-Out lifecycle logic
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
+    const now = new Date();
+
+    const existingAttendance = await prisma.attendance.findUnique({
+      where: {
+        unique_student_attendance_per_day: {
+          studentId: roll,
+          date: today,
+        },
+      },
+    });
+
+    let currentPunchType = "in";
+    let checkInTime = now;
+    let checkOutTime: Date | null = null;
+    let durationMinutes: number | null = null;
+
+    if (existingAttendance) {
+      // If already clocked in, this punch acts as Clock Out (or updates checkOutTime)
+      currentPunchType = "out";
+      checkInTime = existingAttendance.checkInTime || existingAttendance.markedAt;
+      checkOutTime = now;
+      durationMinutes = Math.max(
+        1,
+        Math.round((checkOutTime.getTime() - checkInTime.getTime()) / 60000)
+      );
+    }
 
     const attendance = await prisma.attendance.upsert({
       where: {
@@ -455,11 +483,17 @@ router.post("/verify", async (req: Request, res: Response) => {
           date: today,
         },
       },
-      update: {},
+      update: {
+        punchType: currentPunchType,
+        checkOutTime,
+        durationMinutes,
+      },
       create: {
         studentId: roll,
         date: today,
         method: "qr",
+        punchType: "in",
+        checkInTime: now,
       },
     });
 
@@ -470,6 +504,7 @@ router.post("/verify", async (req: Request, res: Response) => {
         slot: BigInt(slot),
         nonce: nonce || "",
         outcome: "ok",
+        punchType: currentPunchType,
       },
     });
 
@@ -477,12 +512,18 @@ router.post("/verify", async (req: Request, res: Response) => {
       id: attendance.id,
       roll: student.roll,
       name: `${student.firstName} ${student.lastName}`,
+      role: student.role || "member",
+      org: student.org?.name ?? "Default Organization",
       branch: student.branch?.branch ?? "",
       year: student.year?.year ?? null,
       section: student.section?.section ?? "",
       date: today.toISOString().split("T")[0],
       markedAt: attendance.markedAt.toISOString(),
       method: "qr" as const,
+      punchType: currentPunchType,
+      checkInTime: attendance.checkInTime?.toISOString() ?? now.toISOString(),
+      checkOutTime: attendance.checkOutTime?.toISOString() ?? null,
+      durationMinutes: attendance.durationMinutes ?? null,
     };
 
     broadcast("attendance.marked", record);
@@ -491,6 +532,8 @@ router.post("/verify", async (req: Request, res: Response) => {
       ok: true,
       student: record,
       slot,
+      punchType: currentPunchType,
+      durationMinutes,
     });
   } catch (error) {
     console.error("Error verifying punch:", error);

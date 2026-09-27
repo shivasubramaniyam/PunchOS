@@ -2,6 +2,9 @@ export interface Student {
   roll: string;
   firstName: string;
   lastName: string;
+  email?: string;
+  role?: string;
+  org?: string;
   branch: string;
   year: number | null;
   section: string;
@@ -11,12 +14,18 @@ export interface AttendanceRecord {
   id: number;
   roll: string;
   name: string;
+  role?: string;
+  org?: string;
   branch: string;
   year: number | null;
   section: string;
   date: string;
   markedAt: string;
-  method: "qr" | "manual";
+  method: "qr" | "manual" | "offline_sync";
+  punchType?: "in" | "out" | "checkin";
+  checkInTime?: string;
+  checkOutTime?: string | null;
+  durationMinutes?: number | null;
 }
 
 export interface AttendanceResponse {
