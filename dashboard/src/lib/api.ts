@@ -7,23 +7,21 @@ import type {
   Student,
 } from "./types";
 
-function resolveApiBase(): string {
-  // 1. Explicit env override (set NEXT_PUBLIC_API_URL in deployment).
+export function resolveApiBase(): string {
+  // 1. Explicit env override (NEXT_PUBLIC_API_URL).
   const envUrl = process.env.NEXT_PUBLIC_API_URL;
   if (envUrl) return envUrl.replace(/\/$/, "");
 
   if (typeof window !== "undefined") {
-    const { protocol, hostname, port } = window.location;
-    // 2. If running on backend port directly or behind reverse proxy (same origin)
-    if (port === "8000" || (!port && (protocol === "http:" || protocol === "https:"))) {
-      return window.location.origin.replace(/\/$/, "");
+    const { hostname } = window.location;
+    // 2. If running on localhost / 127.0.0.1 in local dev
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:8000";
     }
-    // 3. Connect to backend on port 8000 of whatever host/domain is being used
-    return `${protocol}//${hostname}:8000`;
   }
 
-  // 4. Default fallback
-  return "http://localhost:8000";
+  // 3. Render Production Backend
+  return "https://punchos-api.onrender.com";
 }
 
 export const API_BASE = resolveApiBase();
@@ -38,13 +36,15 @@ async function errorMessage(res: Response): Promise<string> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  const base = resolveApiBase();
+  const res = await fetch(`${base}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(await errorMessage(res));
   return (await res.json()) as T;
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const base = resolveApiBase();
+  const res = await fetch(`${base}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

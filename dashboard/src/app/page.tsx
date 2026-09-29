@@ -11,7 +11,7 @@ import StudentManager from "@/components/StudentManager";
 import OrgModeSwitcher, { ORG_MODES, type OrgMode } from "@/components/OrgModeSwitcher";
 import MerkleAuditModal from "@/components/MerkleAuditModal";
 import EmbedSdkModal from "@/components/embed/EmbedSdkModal";
-import { api, API_BASE } from "@/lib/api";
+import { api, API_BASE, resolveApiBase } from "@/lib/api";
 import { useLiveEvents } from "@/lib/useLiveEvents";
 import type { AttendanceRecord, LiveEvent, Stats, Student } from "@/lib/types";
 
@@ -110,7 +110,8 @@ export default function DashboardPage() {
   // Track SSE connectivity via a lightweight ping of the stats endpoint.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${API_BASE}/api/stats`, { signal: controller.signal })
+    const base = resolveApiBase();
+    fetch(`${base}/api/stats`, { signal: controller.signal })
       .then(() => setConnected(true))
       .catch(() => setConnected(false));
     return () => controller.abort();

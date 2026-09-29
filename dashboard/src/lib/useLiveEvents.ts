@@ -2,11 +2,11 @@
 
 import { useEffect, useRef } from "react";
 
-import { API_BASE } from "./api";
+import { resolveApiBase } from "./api";
 import type { LiveEvent } from "./types";
 
 /**
- * Subscribes to the Django SSE stream (`/api/events`) and invokes `onEvent`
+ * Subscribes to the Express SSE stream (`/api/events`) and invokes `onEvent`
  * for every attendance/student event. Reconnects automatically (retry: 3000).
  */
 export function useLiveEvents(onEvent: (event: LiveEvent) => void): void {
@@ -17,7 +17,8 @@ export function useLiveEvents(onEvent: (event: LiveEvent) => void): void {
   }, [onEvent]);
 
   useEffect(() => {
-    const source = new EventSource(`${API_BASE}/api/events`);
+    const base = resolveApiBase();
+    const source = new EventSource(`${base}/api/events`);
 
     source.onmessage = (message) => {
       try {
