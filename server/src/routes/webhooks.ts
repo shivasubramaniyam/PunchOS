@@ -40,7 +40,7 @@ router.post("/", async (req: Request, res: Response) => {
       data: {
         url,
         secret: autoSecret,
-        events,
+        events: Array.isArray(events) ? events.join(",") : events,
         orgId: orgId || null,
         active: true,
       },
@@ -56,7 +56,7 @@ router.post("/", async (req: Request, res: Response) => {
 // 3. DELETE /api/webhooks/:id - Delete a webhook endpoint
 router.delete("/:id", async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = Number(req.params.id);
     await prisma.webhookConfig.delete({ where: { id } });
     res.json({ ok: true, deleted: true });
   } catch (error) {

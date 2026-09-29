@@ -1,17 +1,26 @@
 /**
- * Client for the Django punch endpoints, with clock-offset measurement
+ * Client for the punch API endpoints, with clock-offset measurement
  * so the 3-second QR slots line up with the server even when the
  * phone's clock drifts.
  */
 
 export function getApiBase(): string {
+  // 1. Explicit env override (set NEXT_PUBLIC_PUNCH_API_URL or NEXT_PUBLIC_API_URL).
+  const envUrl = process.env.NEXT_PUBLIC_PUNCH_API_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl) return envUrl.replace(/\/$/, "");
+
   if (typeof window !== "undefined") {
-    const host = window.location.hostname;
-    if (host && host !== "localhost" && host !== "127.0.0.1") {
-      return `http://${host}:8000`;
+    const { protocol, hostname, port } = window.location;
+    // 2. If running on backend port directly or behind reverse proxy (same origin)
+    if (port === "8000" || (!port && (protocol === "http:" || protocol === "https:"))) {
+      return window.location.origin.replace(/\/$/, "");
     }
+    // 3. Connect to backend on port 8000 of whatever host/domain is being used
+    return `${protocol}//${hostname}:8000`;
   }
-  return process.env.NEXT_PUBLIC_PUNCH_API_URL || "http://localhost:8000";
+
+  // 4. Default fallback
+  return "http://localhost:8000";
 }
 
 export const API_BASE = getApiBase();

@@ -96,9 +96,9 @@ router.post("/create", async (req: Request, res: Response) => {
       roll: student.roll,
       firstName: student.firstName,
       lastName: student.lastName,
-      branch: student.branch.branch,
-      year: student.year.year,
-      section: student.section.section,
+      branch: student.branch?.branch ?? "",
+      year: student.year?.year ?? 0,
+      section: student.section?.section ?? "",
     };
 
     broadcast("student.created", formatted);

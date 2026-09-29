@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "next": "16.3.5",
-    "qr-attendance-system": "file:..",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"

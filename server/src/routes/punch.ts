@@ -97,7 +97,9 @@ router.post("/enroll", async (req: Request, res: Response) => {
   const challenge = crypto.randomBytes(32).toString("base64url");
   setChallenge(`enroll:${rollStr}`, challenge, 180);
 
-  const host = (req.headers.host || "localhost").split(":")[0];
+  // RP ID must exactly match the site the passkey is created on (scheme ignored,
+  // port ignored) — override with RP_ID env when running behind a proxy/domain.
+  const host = process.env.RP_ID || (req.headers.host || "localhost").split(":")[0];
 
   res.json({
     studentId: rollStr,
@@ -311,7 +313,9 @@ router.post("/passkey/init", async (req: Request, res: Response) => {
     return res.status(404).json({ error: "Student not found" });
   }
 
-  const host = (req.headers.host || "localhost").split(":")[0];
+  // RP ID must exactly match the site the passkey is created on (scheme ignored,
+  // port ignored) — override with RP_ID env when running behind a proxy/domain.
+  const host = process.env.RP_ID || (req.headers.host || "localhost").split(":")[0];
   const challenge = crypto.randomBytes(32).toString("base64url");
   setChallenge(`passkey-reg:${rollStr}`, challenge, 180);
 
@@ -384,7 +388,9 @@ router.post("/passkey/auth", async (req: Request, res: Response) => {
   }
 
   const rollStr = String(studentId).trim();
-  const host = (req.headers.host || "localhost").split(":")[0];
+  // RP ID must exactly match the site the passkey is created on (scheme ignored,
+  // port ignored) — override with RP_ID env when running behind a proxy/domain.
+  const host = process.env.RP_ID || (req.headers.host || "localhost").split(":")[0];
   const challenge = crypto.randomBytes(32).toString("base64url");
   setChallenge(`passkey-auth:${rollStr}`, challenge, 180);
 

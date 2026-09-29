@@ -16,9 +16,21 @@ const app = express();
 const PORT = parseInt(process.env.PORT || "8000", 10);
 
 // Middleware
+// Allowlist origins via CORS_ORIGIN (comma-separated). Defaults to open (*).
+const allowedOrigins = (process.env.CORS_ORIGIN || "*")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: "*",
+    origin: allowedOrigins.includes("*")
+      ? "*"
+      : (origin, callback) => {
+          // Allow requests with no Origin header (curl, healthchecks, mobile apps).
+          if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+          return callback(new Error(`Origin ${origin} not allowed by CORS`));
+        },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),

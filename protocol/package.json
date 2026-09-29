@@ -36,6 +36,7 @@
   ],
   "scripts": {
     "build": "tsup src/index.ts src/web.ts src/node.ts --format esm --dts --clean",
+    "test": "vitest run",
     "prepublishOnly": "npm run build",
     "publish:github": "npm publish"
   },

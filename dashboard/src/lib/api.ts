@@ -7,11 +7,26 @@ import type {
   Student,
 } from "./types";
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ??
-  (typeof window !== "undefined"
-    ? `http://${window.location.hostname}:8000`
-    : "http://localhost:8000");
+function resolveApiBase(): string {
+  // 1. Explicit env override (set NEXT_PUBLIC_API_URL in deployment).
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl) return envUrl.replace(/\/$/, "");
+
+  if (typeof window !== "undefined") {
+    const { protocol, hostname, port } = window.location;
+    // 2. If running on backend port directly or behind reverse proxy (same origin)
+    if (port === "8000" || (!port && (protocol === "http:" || protocol === "https:"))) {
+      return window.location.origin.replace(/\/$/, "");
+    }
+    // 3. Connect to backend on port 8000 of whatever host/domain is being used
+    return `${protocol}//${hostname}:8000`;
+  }
+
+  // 4. Default fallback
+  return "http://localhost:8000";
+}
+
+export const API_BASE = resolveApiBase();
 
 async function errorMessage(res: Response): Promise<string> {
   try {

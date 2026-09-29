@@ -2,19 +2,19 @@ import { Router, Request, Response } from "express";
 import {
   generateQrToken,
   generateQrDataUrl,
-  getLocalIp,
 } from "../services/qr.js";
 
 const router = Router();
 
 // GET /api/qr/current - Active rotating QR token and PNG data-URL
-router.get("/current", async (_req: Request, res: Response) => {
-  const port = process.env.PORT || 8000;
-  const ip = getLocalIp();
+router.get("/current", async (req: Request, res: Response) => {
+  const host = req.get("host") || `localhost:${process.env.PORT || 8000}`;
+  const protocol = req.protocol || "http";
+  const baseUrl = process.env.PUBLIC_URL || process.env.APP_URL || `${protocol}://${host}`;
   const { token, expiresIn } = generateQrToken();
 
-  // URL payload encoded in QR (can be scanned directly by phone browser or PWA)
-  const qrUrl = `http://${ip}:${port}/add_manually?token=${encodeURIComponent(token)}`;
+  // URL payload encoded in QR (works on any network/domain/host)
+  const qrUrl = `${baseUrl.replace(/\/$/, "")}/add_manually?token=${encodeURIComponent(token)}`;
 
   try {
     const qrImage = await generateQrDataUrl(qrUrl);
