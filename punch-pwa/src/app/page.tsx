@@ -112,27 +112,38 @@ export default function Home() {
     if (!identity) return;
     setError(null);
     try {
-      // 1. Fresh hardware key for this session (the old one died with the page).
-      const result = await rotateKey(identity);
+      // 1. Passkey biometric gate — required before any punch is signed.
+      let registeredCount = 0;
 
-      // 2. Passkey biometric gate — required before any punch is signed.
-      // Skip with timeout in headless/dev environments (no biometric UI).
       try {
         const options = await passkeyAssertionOptions(identity.roll);
-        const assertPromise = unlockWithPasskey(identity.roll, options);
-        const timeoutPromise = new Promise<null>((resolve) =>
-          setTimeout(() => resolve(null), 4000),
-        );
-        const assertion = await Promise.race([assertPromise, timeoutPromise]);
-        if (assertion) {
+        registeredCount = options.publicKey?.allowCredentials?.length ?? 0;
+
+        if (typeof window !== "undefined" && window.PublicKeyCredential && registeredCount > 0) {
+          const WEBAUTHN_TIMEOUT_MS = 30000;
+          const assertPromise = unlockWithPasskey(identity.roll, options);
+          const timeoutPromise = new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), WEBAUTHN_TIMEOUT_MS)
+          );
+          const assertion = await Promise.race([assertPromise, timeoutPromise]);
+          if (!assertion) {
+            throw new Error("Biometric authentication timed out.");
+          }
           await verifyPasskeyAssertion(identity.roll, assertion);
-        } else {
-          console.warn("Passkey unlock timed out — skipped (no biometric hardware)");
+        } else if (registeredCount === 0) {
+          console.warn("No passkey credentials registered for this student.");
         }
       } catch (passkeyErr) {
+        if (registeredCount > 0) {
+          throw new Error(
+            (passkeyErr as Error).message || "Biometric authentication failed or was cancelled."
+          );
+        }
         console.warn("Passkey unlock skipped:", passkeyErr);
       }
 
+      // 2. Fresh hardware key for this session (only reached if biometrics passed).
+      const result = await rotateKey(identity);
       startPunching(result);
     } catch (e) {
       setError((e as Error).message || "Unlock failed");

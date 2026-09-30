@@ -121,9 +121,8 @@ export default function EnrollFlow({
             });
 
             // 4. Passkey gate (biometric / PIN)
-            // WebAuthn may hang in headless/dev environments (no biometric UI).
-            // Race against a 4s timeout; if it wins, skip the passkey gate.
-            const WEBAUTHN_TIMEOUT_MS = 4000;
+            // Race against a 30s timeout for user interaction.
+            const WEBAUTHN_TIMEOUT_MS = 30000;
             try {
               const options = await passkeyRegistrationOptions(roll);
               const createPromise = navigator.credentials.create({
@@ -148,7 +147,7 @@ export default function EnrollFlow({
               if (credential) {
                 await completePasskeyRegistration(roll, credential);
               } else {
-                console.warn("Passkey registration timed out — skipped (no biometric hardware)");
+                console.warn("Passkey registration timed out — skipped");
               }
             } catch (passkeyErr) {
               console.warn("Passkey registration skipped:", passkeyErr);

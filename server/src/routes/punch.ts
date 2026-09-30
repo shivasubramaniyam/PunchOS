@@ -27,6 +27,20 @@ function getAndClearChallenge(key: string): string | null {
   return item.challenge;
 }
 
+function getRpId(req: Request): string {
+  if (process.env.RP_ID) return process.env.RP_ID;
+  const origin = (req.headers.origin || req.headers.referer || "") as string;
+  if (origin) {
+    try {
+      const url = new URL(origin);
+      return url.hostname;
+    } catch {
+      // ignore
+    }
+  }
+  return ((req.headers.host as string) || "localhost").split(":")[0];
+}
+
 // Convert raw 64-byte P-256 (r || s) signature to ASN.1 DER format for node:crypto
 function rawToDer(raw: Buffer): Buffer {
   if (raw.length !== 64) throw new Error("raw ECDSA signature must be 64 bytes");
@@ -94,12 +108,14 @@ router.post("/enroll", async (req: Request, res: Response) => {
     return res.status(404).json({ error: "Student not found" });
   }
 
+
+
   const challenge = crypto.randomBytes(32).toString("base64url");
   setChallenge(`enroll:${rollStr}`, challenge, 180);
 
   // RP ID must exactly match the site the passkey is created on (scheme ignored,
   // port ignored) — override with RP_ID env when running behind a proxy/domain.
-  const host = process.env.RP_ID || (req.headers.host || "localhost").split(":")[0];
+  const host = getRpId(req);
 
   res.json({
     studentId: rollStr,
@@ -315,7 +331,7 @@ router.post("/passkey/init", async (req: Request, res: Response) => {
 
   // RP ID must exactly match the site the passkey is created on (scheme ignored,
   // port ignored) — override with RP_ID env when running behind a proxy/domain.
-  const host = process.env.RP_ID || (req.headers.host || "localhost").split(":")[0];
+  const host = getRpId(req);
   const challenge = crypto.randomBytes(32).toString("base64url");
   setChallenge(`passkey-reg:${rollStr}`, challenge, 180);
 
@@ -390,7 +406,7 @@ router.post("/passkey/auth", async (req: Request, res: Response) => {
   const rollStr = String(studentId).trim();
   // RP ID must exactly match the site the passkey is created on (scheme ignored,
   // port ignored) — override with RP_ID env when running behind a proxy/domain.
-  const host = process.env.RP_ID || (req.headers.host || "localhost").split(":")[0];
+  const host = getRpId(req);
   const challenge = crypto.randomBytes(32).toString("base64url");
   setChallenge(`passkey-auth:${rollStr}`, challenge, 180);
 
