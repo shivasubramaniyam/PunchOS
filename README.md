@@ -54,15 +54,17 @@ Traditional classroom QR attendance projects suffer from a fatal flaw: **the fac
   - 💼 **Tech Enterprise** (`Employee Badge`, `Dept & Floor`, `Desk Check-In`)
   - 🎟️ **Web3 Hackathon** (`Hacker / Wallet`, `Track / Team`, `POAP Check-In`)
 
-### 3. 🎯 Apple Watch Activity Rings & Exam Predictor (Student PWA)
+### 3. 🎯 Apple Watch Activity Rings, Exam Predictor & Real-Time Sync (Student PWA)
 - **Activity Rings**: Circular SVG progress gauge showing attendance percentage against minimum cutoffs.
+- **Real-Time Live Sync**: Connects to Server-Sent Events (`/api/events`) with automatic 3s polling fallback — instantly updating activity rings, percentages, and streaks when scanned.
 - **Exam Eligibility Predictor**: Calculates safety margins (e.g. *"🛡️ Safe: You can miss up to 2 more classes without dropping below 75%"*).
-- **Weekly Habit Heatmap**: 7-day activity tracking consistency.
+- **Dynamic Weekly Habit Heatmap**: 7-day activity tracking mapping Mon..Sun against actual student attendance history (`stats.history`) with visual indicators for attended, missed, weekend, and upcoming days.
+- **Manual Refresh & Sync Status**: Exposes manual refresh button and live time tag (`Synced 11:53 AM`).
 
 ### 4. 🔗 Web3 RFC 6962 Merkle Tree Audit & Verifiable Receipts
 - **Cryptographic Merkle Root**: Daily attendance events are hashed into an RFC 6962 Merkle Tree with `0x00` leaf and `0x01` internal node separation.
 - **Faculty Merkle Inspector**: Click **"Audit Merkle Tree"** on the dashboard to inspect the current daily root hash and tree size.
-- **Cryptographic Receipts**: Students can click **"View Cryptographic Punch Receipt"** to load and copy zero-knowledge JSON inclusion proofs (`path`, `index`, `rootHex`).
+- **Case-Insensitive Cryptographic Receipts**: Students can click **"View Cryptographic Punch Receipt"** to load and copy zero-knowledge JSON inclusion proofs (`path`, `index`, `rootHex`) with case-insensitive roll matching.
 
 ---
 

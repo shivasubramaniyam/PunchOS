@@ -224,30 +224,33 @@ $$\text{Slot Number} = \left\lfloor \frac{\text{Current Unix Timestamp}}{\text{S
 
 ### Core & Dashboard API (`/api/`)
 
-| Method | Endpoint               | Description                               | Query / Body Parameters                                            |
-| ------ | ---------------------- | ----------------------------------------- | ------------------------------------------------------------------ | --------------------------- |
-| `GET`  | `/api/students`        | List students with optional filters       | `?branch=CSE&year=3&section=A`                                     |
-| `POST` | `/api/students/create` | Add a new student record                  | `{ "roll", "firstName", "lastName", "branch", "year", "section" }` |
-| `POST` | `/api/students/delete` | Remove a student record                   | `{ "roll": "1JT21CS001" }`                                         |
-| `GET`  | `/api/attendance`      | Query attendance for a specific date      | `?date=YYYY-MM-DD`                                                 |
-| `POST` | `/api/attendance/mark` | Mark student attendance                   | `{ "roll": "...", "method": "qr"                                   | "manual", "token": "..." }` |
-| `POST` | `/api/attendance/undo` | Undo an attendance entry                  | `{ "id": 42 }`                                                     |
-| `GET`  | `/api/stats`           | Get daily aggregate attendance statistics | `?date=YYYY-MM-DD`                                                 |
-| `GET`  | `/api/qr/current`      | Fetch active rotating QR code and image   | Returns token and base64 PNG data-URL                              |
-| `GET`  | `/api/events`          | Server-Sent Events (SSE) live feed        | Returns `text/event-stream`                                        |
+| Method | Endpoint                    | Description                                  | Query / Body Parameters |
+| ------ | --------------------------- | -------------------------------------------- | ----------------------- |
+| `GET`  | `/api/students`             | List students with optional filters          | `?branch=CSE&year=3&section=A` |
+| `POST` | `/api/students/create`      | Add a new student record                     | `{ "roll", "firstName", "lastName", "branch", "year", "section" }` |
+| `POST` | `/api/students/delete`      | Remove a student record                      | `{ "roll": "1JT21CS001" }` |
+| `GET`  | `/api/attendance`           | Query attendance for a specific date         | `?date=YYYY-MM-DD` |
+| `GET`  | `/api/attendance/student/:roll` | Case-insensitive attendance stats & history for student | Params: `:roll` |
+| `POST` | `/api/attendance/mark`      | Mark student attendance                      | `{ "roll": "...", "method": "qr" \| "manual", "token": "..." }` |
+| `POST` | `/api/attendance/undo`      | Undo an attendance entry                     | `{ "id": 42 }` |
+| `GET`  | `/api/stats`                | Get daily aggregate attendance statistics    | `?date=YYYY-MM-DD` |
+| `GET`  | `/api/qr/current`           | Fetch active rotating QR code and image      | Returns token and base64 PNG data-URL |
+| `GET`  | `/api/events`               | Server-Sent Events (SSE) live feed           | Returns `text/event-stream` for live PWA & Dashboard updates |
 
 ### Punch Protocol API (`/api/punch/`)
 
-| Method | Endpoint                   | Description                                          |
-| ------ | -------------------------- | ---------------------------------------------------- |
-| `POST` | `/api/punch/enroll`        | Request challenge for hardware key registration      |
-| `POST` | `/api/punch/enroll/finish` | Submit and store public ECDSA JWK key                |
-| `GET`  | `/api/punch/key-status`    | Check device enrollment status for a roll number     |
-| `POST` | `/api/punch/passkey/init`  | Request WebAuthn credential creation options         |
-| `POST` | `/api/punch/passkey/done`  | Submit attestation response and finish passkey setup |
-| `POST` | `/api/punch/passkey/auth`  | Request WebAuthn assertion challenge for punching    |
-| `POST` | `/api/punch/passkey/check` | Verify assertion signature and unlock slot signing   |
-| `POST` | `/api/punch/verify`        | Verify scanned `punch.v1` JWS QR code                |
+| Method | Endpoint                    | Description                                          |
+| ------ | --------------------------- | ---------------------------------------------------- |
+| `POST` | `/api/punch/enroll`         | Request challenge for hardware key registration      |
+| `POST` | `/api/punch/enroll/finish`  | Submit and store public ECDSA JWK key                |
+| `GET`  | `/api/punch/key-status`     | Check device enrollment status for a roll number     |
+| `POST` | `/api/punch/passkey/init`   | Request WebAuthn credential creation options         |
+| `POST` | `/api/punch/passkey/done`   | Submit attestation response and finish passkey setup |
+| `POST` | `/api/punch/passkey/auth`   | Request WebAuthn assertion challenge for punching    |
+| `POST` | `/api/punch/passkey/check`  | Verify assertion signature and unlock slot signing   |
+| `POST` | `/api/punch/verify`         | Verify scanned `punch.v1` JWS QR code                |
+| `GET`  | `/api/punch/merkle-root`    | Get current daily RFC 6962 Merkle tree root hash     |
+| `GET`  | `/api/punch/receipt/:roll`  | Get cryptographic zero-knowledge inclusion proof for student |
 
 ---
 

@@ -231,9 +231,12 @@ QR-Attendance-System/
 - **Framework:** Next.js 16 (Mobile-First PWA).
 - **Port:** `3001`.
 - **Features:**
-  - Works on Android (Chrome) and iOS (Safari).
-  - Can be added to Home Screen as a native app.
-  - Stores the cryptographic private key in `IndexedDB` or the device's Hardware Passkey Manager.
+  - Works on Android (Chrome) and iOS (Safari) with PWA installability.
+  - Generates non-extractable ECDSA P-256 hardware signatures gated by WebAuthn Passkeys (TouchID / FaceID).
+  - **Real-Time Attendance Sync (`StudentAnalytics.tsx`):** Subscribes to backend SSE stream (`/api/events`) with 3s polling fallback. Activity rings, attendance rate, class counts, and streaks update automatically upon scan.
+  - **Dynamic 7-Day Habit Heatmap:** Maps Monday through Sunday against actual attendance history (`stats.history`) with indicators for attended, missed, weekend, and upcoming days.
+  - **Exam Eligibility Predictor:** Computes buffer margins for 75% cutoff compliance.
+  - **Verifiable Merkle Receipts:** Generates zero-knowledge RFC 6962 inclusion proofs (`path`, `index`, `rootHex`).
 
 ---
 
