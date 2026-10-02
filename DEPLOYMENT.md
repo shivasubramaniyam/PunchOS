@@ -38,7 +38,7 @@ Deploy the full stack in ~30 minutes. Total cost on free tiers: **$0**.
 2. **Create Web Service**: **New +** → **Web Service** → Connect repo.
    - **Root Directory**: `server`
    - **Environment**: `Node`
-   - **Build Command**: `npm install && npm run build && npx prisma generate`
+   - **Build Command**: `npm install && npx prisma generate && npm run build`
    - **Start Command**: `npx prisma db push && node dist/index.js`
    - **Environment Variables**:
      - `DATABASE_URL`: paste the *Internal Database URL* from `punchos-db`
