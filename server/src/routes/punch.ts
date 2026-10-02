@@ -499,14 +499,21 @@ router.post("/verify", async (req: Request, res: Response) => {
       }
     }
 
-    // Lookup student by roll and organization slug
-    const student = await prisma.student.findFirst({
+    // Lookup student by roll and organization slug with fallback
+    let student = await prisma.student.findFirst({
       where: {
         roll,
         ...(orgSlug && orgSlug !== "local" ? { org: { slug: orgSlug } } : {}),
       },
       include: { org: true, branch: true, year: true, section: true },
     });
+
+    if (!student) {
+      student = await prisma.student.findUnique({
+        where: { roll },
+        include: { org: true, branch: true, year: true, section: true },
+      });
+    }
 
     if (!student) {
       return res.status(404).json({ error: "Student/Member identity not found in roster" });
