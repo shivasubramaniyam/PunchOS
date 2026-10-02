@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { API_BASE, fetchStudentStats, type StudentAttendanceStats } from "@/lib/api";
 
 interface MerkleReceipt {
@@ -25,24 +25,74 @@ export default function StudentAnalytics({ roll }: StudentAnalyticsProps) {
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const loadStats = useCallback(async () => {
+    if (!roll) return;
+    try {
+      setIsRefreshing(true);
+      const data = await fetchStudentStats(roll);
+      setStats(data);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.warn("Failed to load student attendance stats:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [roll]);
 
   useEffect(() => {
-    fetchStudentStats(roll)
-      .then(setStats)
-      .catch(() => undefined);
-  }, [roll]);
+    // Initial fetch
+    loadStats();
+
+    // 1. Polling interval (every 3 seconds for immediate real-time sync)
+    const pollInterval = setInterval(() => {
+      loadStats();
+    }, 3000);
+
+    // 2. Server-Sent Events (SSE) listener for instant push updates
+    let eventSource: EventSource | null = null;
+    try {
+      eventSource = new EventSource(`${API_BASE}/api/events`);
+      eventSource.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "attendance.marked" || msg.type === "attendance.undone") {
+            loadStats();
+          }
+        } catch {
+          // Ignore JSON parse errors from keep-alive comments
+        }
+      };
+    } catch {
+      // Fall back to polling interval
+    }
+
+    return () => {
+      clearInterval(pollInterval);
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [loadStats]);
 
   // Attendance metrics derived from database stats
   const totalClasses = stats?.totalClasses ?? 30;
   const attendedClasses = stats?.attendedClasses ?? 0;
   const attendanceRate = stats?.attendanceRate ?? Math.round((attendedClasses / Math.max(1, totalClasses)) * 100);
-  const streakDays = stats?.streakDays ?? (attendedClasses > 0 ? 5 : 0);
+  const streakDays = stats?.streakDays ?? 0;
   const minRequiredPct = 75;
 
   // Buffer calculation: (attended - 0.75 * total) / 0.75
   const maxMissable = Math.max(
     0,
     Math.floor((attendedClasses - (minRequiredPct / 100) * totalClasses) / (minRequiredPct / 100))
+  );
+
+  const classesNeededTo75 = Math.max(
+    0,
+    Math.ceil((minRequiredPct / 100 * totalClasses - attendedClasses) / (1 - minRequiredPct / 100))
   );
 
   const isEligible = attendanceRate >= minRequiredPct;
@@ -53,6 +103,54 @@ export default function StudentAnalytics({ roll }: StudentAnalyticsProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (attendanceRate / 100) * circumference;
+
+  // Build 7-day habit heatmap from real attendance history
+  const buildWeeklyHeatmap = () => {
+    const daysName = ["M", "T", "W", "T", "F", "S", "S"];
+    const historyDates = new Set((stats?.history ?? []).map((h) => h.date));
+    
+    // Get current Monday as start of week
+    const now = new Date();
+    const currentDayOfWeek = now.getDay(); // 0 = Sun, 1 = Mon...
+    const distToMon = (currentDayOfWeek + 6) % 7;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - distToMon);
+
+    return daysName.map((dayLabel, idx) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + idx);
+      const isoDate = d.toISOString().split("T")[0];
+      const isPastOrToday = d <= now;
+      const isWeekend = idx >= 5;
+      const isAttended = historyDates.has(isoDate);
+
+      let statusClass = "weekend";
+      let statusTitle = `${dayLabel} (${isoDate}): Weekend`;
+
+      if (isAttended) {
+        statusClass = "active";
+        statusTitle = `${dayLabel} (${isoDate}): Attended`;
+      } else if (!isWeekend && isPastOrToday) {
+        statusClass = "missed";
+        statusTitle = `${dayLabel} (${isoDate}): Missed / Not Marked`;
+      } else if (isWeekend) {
+        statusClass = "weekend";
+        statusTitle = `${dayLabel} (${isoDate}): Off day`;
+      } else {
+        statusClass = "future";
+        statusTitle = `${dayLabel} (${isoDate}): Upcoming`;
+      }
+
+      return {
+        label: dayLabel,
+        date: isoDate,
+        statusClass,
+        statusTitle,
+      };
+    });
+  };
+
+  const weeklyHeatmap = buildWeeklyHeatmap();
 
   const fetchReceipt = async () => {
     setLoadingReceipt(true);
@@ -85,7 +183,22 @@ export default function StudentAnalytics({ roll }: StudentAnalyticsProps) {
   return (
     <div className="analytics-card">
       <div className="analytics-header">
-        <span className="analytics-pill">🔥 {streakDays}-Day Punch Streak</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <span className="analytics-pill">🔥 {streakDays}-Day Streak</span>
+          <button
+            onClick={loadStats}
+            title="Refresh Attendance Stats"
+            className="btn-ghost"
+            style={{
+              padding: "0.2rem 0.4rem",
+              fontSize: "0.7rem",
+              borderRadius: "999px",
+              opacity: isRefreshing ? 0.5 : 0.9,
+            }}
+          >
+            {isRefreshing ? "⏳" : "🔄"}
+          </button>
+        </div>
         <span className="analytics-status-badge" style={{ color: isEligible ? "#22c55e" : "#f59e0b" }}>
           {isEligible ? "● Exam Eligible" : "▲ Attention Needed"}
         </span>
@@ -135,27 +248,34 @@ export default function StudentAnalytics({ roll }: StudentAnalyticsProps) {
           <div className="predictor-advice">
             {isEligible ? (
               <p className="advice-safe">
-                🛡️ <strong>Exam Ready:</strong> You can miss up to <strong>{maxMissable} more classes</strong> without dropping below the 75% cutoff.
+                🛡️ <strong>Exam Ready:</strong> You can miss up to <strong>{maxMissable} more classes</strong> without dropping below 75%.
               </p>
             ) : (
               <p className="advice-warn">
-                ⚠️ <strong>Below Cutoff:</strong> Attend the next <strong>3 classes</strong> to restore 75% eligibility.
+                ⚠️ <strong>Below Cutoff:</strong> Attend the next <strong>{classesNeededTo75 > 0 ? classesNeededTo75 : 3} classes</strong> to restore 75% eligibility.
               </p>
             )}
           </div>
         </div>
       </div>
 
-      {/* 7-Day Mini Heatmap */}
+      {/* 7-Day Dynamic Heatmap */}
       <div className="streak-heatmap">
-        <span className="streak-title">Weekly Attendance Habit</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span className="streak-title">Weekly Attendance Habit</span>
+          {lastUpdated ? (
+            <span style={{ fontSize: "0.65rem", color: "var(--fg-dim, #888)" }}>
+              Synced {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          ) : null}
+        </div>
         <div className="heatmap-row">
-          {["M", "T", "W", "T", "F", "S", "S"].map((day, idx) => (
+          {weeklyHeatmap.map((item, idx) => (
             <div key={idx} className="heatmap-col">
-              <span className="heatmap-day">{day}</span>
+              <span className="heatmap-day">{item.label}</span>
               <div
-                className={`heatmap-dot ${idx < 5 ? "active" : "weekend"}`}
-                title={idx < 5 ? "Checked In" : "Off day"}
+                className={`heatmap-dot ${item.statusClass}`}
+                title={item.statusTitle}
               />
             </div>
           ))}

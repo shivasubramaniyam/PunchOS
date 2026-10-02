@@ -70,27 +70,66 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/student/:roll", async (req: Request, res: Response) => {
   const rollStr = String(req.params.roll).trim();
   try {
-    const student = await prisma.student.findUnique({
-      where: { roll: rollStr },
+    const student = await prisma.student.findFirst({
+      where: {
+        roll: {
+          equals: rollStr,
+          mode: "insensitive",
+        },
+      },
       include: {
         attendances: { orderBy: { markedAt: "desc" } },
       },
     });
 
     if (!student) {
-      return res.status(404).json({ error: "Student not found" });
+      return res.json({
+        roll: rollStr,
+        totalClasses: 30,
+        attendedClasses: 0,
+        attendanceRate: 0,
+        streakDays: 0,
+        history: [],
+      });
     }
 
     const totalDays = 30; // Active working days in semester
     const attendedCount = student.attendances.length;
     const rate = Math.round((attendedCount / Math.max(totalDays, attendedCount)) * 100);
 
+    // Calculate actual consecutive attendance streak days
+    const uniqueDates = Array.from(
+      new Set(student.attendances.map((a) => formatDateIso(a.date)))
+    ).sort().reverse();
+
+    let streak = 0;
+    if (uniqueDates.length > 0) {
+      const todayStr = formatDateIso(new Date());
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = formatDateIso(yesterday);
+
+      let checkDateStr = uniqueDates[0] === todayStr || uniqueDates[0] === yesterdayStr ? uniqueDates[0] : "";
+      if (checkDateStr) {
+        let cur = new Date(checkDateStr);
+        for (const dStr of uniqueDates) {
+          const expected = formatDateIso(cur);
+          if (dStr === expected) {
+            streak++;
+            cur.setDate(cur.getDate() - 1);
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
     res.json({
       roll: student.roll,
       totalClasses: Math.max(totalDays, attendedCount),
       attendedClasses: attendedCount,
       attendanceRate: rate,
-      streakDays: attendedCount > 0 ? 5 : 0,
+      streakDays: streak,
       history: student.attendances.map((a) => ({
         id: a.id,
         date: formatDateIso(a.date),

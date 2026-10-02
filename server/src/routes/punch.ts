@@ -766,7 +766,7 @@ router.get("/receipt/:roll", async (req: Request, res: Response) => {
 
   try {
     const tree = await computeDailyMerkleTree();
-    const leaf = tree.leaves.find((l) => l.studentId === roll);
+    const leaf = tree.leaves.find((l) => l.studentId.toLowerCase() === roll.toLowerCase());
 
     if (!leaf) {
       return res.status(404).json({ error: "No verified punch found today for this student" });
