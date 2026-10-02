@@ -26,13 +26,18 @@ import {
   passkeyAssertionOptions,
   verifyPasskeyAssertion,
   finishEnrollment,
+  fetchStudentProfile,
+  type StudentProfile,
 } from "@/lib/api";
 
 type Phase = "boot" | "enroll" | "unlock" | "punch";
 
 interface StoredIdentity {
   roll: string;
+  name?: string;
+  email?: string;
   label: string;
+  orgSlug?: string;
 }
 
 const STORAGE_KEY = "punch.identity.v1";
@@ -65,12 +70,14 @@ async function rotateKey(identity: StoredIdentity): Promise<EnrollResult> {
   const kid = await (
     await import("@/components/EnrollFlow")
   ).kidFromKeyPairExported(keyPair);
-  return { keyPair, kid, sid: `punch:local:${identity.roll}` };
+  const orgSlug = identity.orgSlug || "campus";
+  return { keyPair, kid, sid: `punch:${orgSlug}:${identity.roll}` };
 }
 
 export default function Home() {
   const [phase, setPhase] = useState<Phase>("boot");
   const [identity, setIdentity] = useState<StoredIdentity | null>(null);
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [session, setSession] = useState<EnrollResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +92,11 @@ export default function Home() {
       if (!active) return;
       const stored = loadIdentity();
       setIdentity(stored);
+      if (stored?.roll) {
+        fetchStudentProfile(stored.roll)
+          .then((r) => setProfile(r.student))
+          .catch(() => undefined);
+      }
       setPhase(stored ? "unlock" : "enroll");
     })();
     return () => {
@@ -99,10 +111,15 @@ export default function Home() {
 
   const handleEnrolled = useCallback(
     (result: EnrollResult) => {
-      const roll = result.sid.split(":")[2] ?? "";
+      const parts = result.sid.split(":");
+      const orgSlug = parts.length >= 3 ? parts[1] : "campus";
+      const roll = parts.length >= 3 ? parts[2] : parts[parts.length - 1];
       const label = "This phone";
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ roll, label } satisfies StoredIdentity));
-      setIdentity({ roll, label });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ roll, label, orgSlug } satisfies StoredIdentity));
+      setIdentity({ roll, label, orgSlug });
+      fetchStudentProfile(roll)
+        .then((r) => setProfile(r.student))
+        .catch(() => undefined);
       startPunching(result);
     },
     [startPunching]
@@ -179,8 +196,11 @@ export default function Home() {
       <main className="punch-shell">
         <header className="punch-header">
           <div>
-            <p className="punch-kicker">Welcome back</p>
-            <h1 className="punch-title">{identity?.roll ?? "Student"}</h1>
+            <p className="punch-kicker">Welcome back{profile?.branch ? ` • ${profile.branch} ${profile.section ? `Sec ${profile.section}` : ""}` : ""}</p>
+            <h1 className="punch-title">{profile?.name || identity?.roll || "Student"}</h1>
+            <p className="slot-meta" style={{ marginTop: 4 }}>
+              Roll: <strong>{identity?.roll}</strong> {profile?.email ? `• ${profile.email}` : ""}
+            </p>
           </div>
         </header>
         <button className="btn-primary" onClick={handleUnlock}>
@@ -192,6 +212,7 @@ export default function Home() {
           onClick={() => {
             localStorage.removeItem(STORAGE_KEY);
             setIdentity(null);
+            setProfile(null);
             setPhase("enroll");
           }}
         >

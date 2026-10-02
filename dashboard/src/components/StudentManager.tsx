@@ -152,14 +152,23 @@ export default function StudentManager({
           <input name="lastName" required placeholder="Last name" className={inputCls} />
           <input name="branch" required placeholder="Branch (CSE)" className={inputCls} />
           <input name="year" required type="number" min={1} max={4} placeholder="Year" className={inputCls} />
-          <div className="flex gap-2">
+          
             <input name="section" required placeholder="Sec" className={inputCls} />
+          <div className="flex gap-2">
             <button
               type="submit"
               disabled={busy}
-              className="h-9 shrink-0 rounded-lg bg-emerald-500 px-3 text-xs font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:opacity-50"
+              className="h-9 shrink-0 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-muted transition-colors hover:bg-emerald-400 disabled:opacity-50"
             >
               Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              disabled={busy}
+              className="h-9 shrink-0 rounded-lg bg-rose-500 px-3 text-xs font-semibold text-muted transition-colors hover:bg-rose-600 disabled:opacity-50"
+            >
+              Cancel
             </button>
           </div>
         </form>

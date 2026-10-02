@@ -40,6 +40,42 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/students/:roll - Fetch single student profile by roll
+router.get("/:roll", async (req: Request, res: Response) => {
+  const rollStr = String(req.params.roll).trim();
+  try {
+    const student = await prisma.student.findUnique({
+      where: { roll: rollStr },
+      include: {
+        branch: true,
+        year: true,
+        section: true,
+        user: true,
+      },
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    res.json({
+      student: {
+        roll: student.roll,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        name: `${student.firstName} ${student.lastName}`,
+        email: student.email || student.user?.email || "",
+        branch: student.branch?.branch ?? "",
+        year: student.year?.year ?? null,
+        section: student.section?.section ?? "",
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching student profile:", error);
+    res.status(500).json({ error: "Failed to fetch student profile" });
+  }
+});
+
 // POST /api/students/create - Add a new student
 router.post("/create", async (req: Request, res: Response) => {
   const { roll, firstName, lastName, branch, year, section } = req.body;

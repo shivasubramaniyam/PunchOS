@@ -84,5 +84,17 @@ export const api = {
       "/api/punch/verify",
       { qrText },
     ),
+
+  login: (credentials: { email: string; password: string }) =>
+    post<{ ok: boolean; token: string; user: { id: string; name: string; role: string; email: string } }>(
+      "/api/auth/login",
+      credentials,
+    ),
+
+  register: (data: { email: string; password: string; name: string; role: string }) =>
+    post<{ ok: boolean; token: string; user: { id: string; name: string; role: string; email: string } }>(
+      "/api/auth/register",
+      data,
+    ),
 };
 

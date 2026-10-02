@@ -14,11 +14,14 @@
 
 import { generatePunchKey } from "@/lib/protocol";
 
+import { useState } from "react";
 import {
   beginEnrollment,
   completePasskeyRegistration,
   finishEnrollment,
   passkeyRegistrationOptions,
+  loginUser,
+  registerUser,
 } from "@/lib/api";
 
 export interface EnrollResult {
@@ -82,49 +85,82 @@ function buildKidInput(x: Uint8Array, y: Uint8Array): Uint8Array {
   return out;
 }
 
+import OrgSelector, { type OrgSlug } from "./OrgSelector";
+
 export default function EnrollFlow({
   onEnrolled,
 }: {
   onEnrolled: (result: EnrollResult) => void;
 }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [orgSlug, setOrgSlug] = useState<OrgSlug>("campus");
+  const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
   return (
     <main className="punch-shell">
       <header className="punch-header">
         <div>
           <p className="punch-kicker">Punch Attendance</p>
-          <h1 className="punch-title">Set up this device</h1>
+          <h1 className="punch-title">{isLogin ? "Student Login" : "Register Student"}</h1>
         </div>
       </header>
+
       <form
         className="enroll-form"
         onSubmit={async (event) => {
           event.preventDefault();
+          setAuthError(null);
+          setLoading(true);
           const form = new FormData(event.currentTarget);
           const roll = String(form.get("roll") ?? "").trim();
+          const password = String(form.get("password") ?? "").trim();
+          const email = String(form.get("email") ?? "").trim();
+          const name = String(form.get("name") ?? "").trim();
           const label = String(form.get("label") ?? "This phone").trim() || "This phone";
-          if (!roll) return;
 
           try {
-            // 1. Identity -> server challenge
-            const enroll = await beginEnrollment(roll);
-            // 2. Hardware-bound key
+            // 1. Student Authentication
+            let authRoll = roll;
+            if (isLogin) {
+              const res = await loginUser({ studentId: roll, password });
+              if (res.token) {
+                localStorage.setItem("punch.token.v1", res.token);
+              }
+              authRoll = res.user.studentId || roll;
+            } else {
+              const res = await registerUser({
+                email,
+                password,
+                name: name || roll,
+                role: "student",
+                studentId: roll,
+              });
+              if (res.token) {
+                localStorage.setItem("punch.token.v1", res.token);
+              }
+              authRoll = res.user.studentId || roll;
+            }
+
+            // 2. Identity -> server challenge
+            const enroll = await beginEnrollment(authRoll);
+            // 3. Hardware-bound key
             const generated = await generatePunchKey();
             const keyPair = generated.keyPair;
             const kid = await kidFromKeyPair(keyPair);
 
-            // 3. Server stores the public half, challenge-bound
+            // 4. Server stores the public half & revokes older keys
             await finishEnrollment({
-              studentId: roll,
+              studentId: authRoll,
               publicKeyJwk: await exportJwk(keyPair),
               challenge: enroll.challenge,
               label,
             });
 
-            // 4. Passkey gate (biometric / PIN)
-            // Race against a 30s timeout for user interaction.
+            // 5. Passkey gate (biometric / PIN)
             const WEBAUTHN_TIMEOUT_MS = 30000;
             try {
-              const options = await passkeyRegistrationOptions(roll);
+              const options = await passkeyRegistrationOptions(authRoll);
               const createPromise = navigator.credentials.create({
                 publicKey: {
                   rp: options.publicKey.rp as PublicKeyCredentialRpEntity,
@@ -145,7 +181,7 @@ export default function EnrollFlow({
               );
               const credential = await Promise.race([createPromise, timeoutPromise]);
               if (credential) {
-                await completePasskeyRegistration(roll, credential);
+                await completePasskeyRegistration(authRoll, credential);
               } else {
                 console.warn("Passkey registration timed out — skipped");
               }
@@ -153,27 +189,63 @@ export default function EnrollFlow({
               console.warn("Passkey registration skipped:", passkeyErr);
             }
 
-            onEnrolled({ keyPair, kid, sid: `punch:local:${roll}` });
+            onEnrolled({ keyPair, kid, sid: `punch:${orgSlug}:${authRoll}` });
           } catch (error) {
-            alert(`Enrollment failed: ${(error as Error).message}`);
+            setAuthError((error as Error).message || "Authentication & Enrollment failed");
+          } finally {
+            setLoading(false);
           }
         }}
       >
+        <OrgSelector value={orgSlug} onChange={setOrgSlug} />
+
         <label className="field">
-          <span>Roll number</span>
+          <span>Roll number / ID</span>
           <input name="roll" required placeholder="e.g. 22B81A0595" autoComplete="off" />
         </label>
+
+        {!isLogin ? (
+          <>
+            <label className="field">
+              <span>Full Name</span>
+              <input name="name" required placeholder="John Doe" autoComplete="name" />
+            </label>
+            <label className="field">
+              <span>Email</span>
+              <input name="email" type="email" required placeholder="student@college.edu" autoComplete="email" />
+            </label>
+          </>
+        ) : null}
+
+        <label className="field">
+          <span>Password</span>
+          <input name="password" type="password" required placeholder="••••••••" autoComplete="current-password" />
+        </label>
+
         <label className="field">
           <span>Device label</span>
           <input name="label" defaultValue="This phone" />
         </label>
-        <button className="btn-primary" type="submit">
-          Create hardware punch key + passkey
+
+        {authError ? <p className="error-text">{authError}</p> : null}
+
+        <button className="btn-primary" type="submit" disabled={loading}>
+          {loading ? "Authenticating & Binding Device…" : isLogin ? "Login & Bind Hardware Key" : "Register & Bind Hardware Key"}
+        </button>
+
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={() => {
+            setIsLogin(!isLogin);
+            setAuthError(null);
+          }}
+        >
+          {isLogin ? "Need a new account? Register" : "Already registered? Sign In"}
         </button>
       </form>
       <p className="hint">
-        The private key is generated inside this device&apos;s secure hardware and never
-        leaves it. Your face, fingerprint, or PIN gates every attendance session.
+        Your institutional login authenticates your identity. A fresh non-extractable key is generated inside this device&apos;s secure hardware to prevent proxy attendance.
       </p>
     </main>
   );

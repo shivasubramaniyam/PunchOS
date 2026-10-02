@@ -174,11 +174,18 @@ router.post("/enroll/finish", async (req: Request, res: Response) => {
   const keyId = keyIdFromJwk(jwkStore);
 
   try {
+    // Revoke any previous punch keys for this student to enforce strict 1-device binding
+    await prisma.punchKey.updateMany({
+      where: { studentId: rollStr, keyId: { not: keyId } },
+      data: { status: "REVOKED", revokedAt: new Date() },
+    });
+
     const key = await prisma.punchKey.upsert({
       where: { keyId },
       update: {
         publicJwk: JSON.stringify(jwkStore),
         label: String(label),
+        status: "ACTIVE",
         trustTier: 1,
         revokedAt: null,
       },
@@ -188,6 +195,7 @@ router.post("/enroll/finish", async (req: Request, res: Response) => {
         publicJwk: JSON.stringify(jwkStore),
         label: String(label),
         hardwareBacked: true,
+        status: "ACTIVE",
         trustTier: 1,
       },
     });
@@ -478,15 +486,25 @@ router.post("/verify", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Incomplete punch payload" });
     }
 
-    // Extract student/member roll from sid (supports "punch:TRUSTGRID:<roll>", "punch:local:<roll>", or "<roll>")
+    // Extract student roll and orgSlug from sid URN (e.g. "punch:campus:22B81A0595" or "punch:tech-corp:EMP_9082")
     let roll = sid;
+    let orgSlug: string | undefined;
     if (sid.includes(":")) {
       const parts = sid.split(":");
-      roll = parts[parts.length - 1];
+      if (parts.length >= 3) {
+        orgSlug = parts[1];
+        roll = parts[2];
+      } else {
+        roll = parts[parts.length - 1];
+      }
     }
 
-    const student = await prisma.student.findUnique({
-      where: { roll },
+    // Lookup student by roll and organization slug
+    const student = await prisma.student.findFirst({
+      where: {
+        roll,
+        ...(orgSlug && orgSlug !== "local" ? { org: { slug: orgSlug } } : {}),
+      },
       include: { org: true, branch: true, year: true, section: true },
     });
 

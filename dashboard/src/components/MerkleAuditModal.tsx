@@ -50,15 +50,15 @@ export default function MerkleAuditModal({ isOpen, onClose }: MerkleAuditModalPr
         <div className="pointer-events-none absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-emerald-600/20 blur-3xl" />
 
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 text-white shadow-lg shadow-purple-500/20">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 className="text-base font-bold text-white flex items-start gap-2">
                 RFC 6962 Merkle Transparency Log
-                <span className="rounded-full bg-purple-500/10 px-2 py-0.5 text-[10px] font-mono text-purple-300 border border-purple-500/20">
+                <span className="rounded-xl bg-purple-500/10 px-2 py-0.5 text-[10px] font-mono text-purple-300 border border-purple-500/20 flex w-auto">
                   Web3 Cryptographic Proof
                 </span>
               </h3>
@@ -66,14 +66,15 @@ export default function MerkleAuditModal({ isOpen, onClose }: MerkleAuditModalPr
                 Zero-trust tamper-proof audit trail for verified biometric punches
               </p>
             </div>
-          </div>
-          <button
+            <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-zinc-800 bg-zinc-900 p-2 text-zinc-400 hover:text-white transition-colors"
+            className="rounded-xl border border-zinc-800 bg-zinc-900 p-2 text-zinc-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
+          </div>
+          
         </div>
 
         {/* Content */}

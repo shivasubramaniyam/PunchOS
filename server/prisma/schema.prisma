@@ -52,6 +52,19 @@ model Section {
   students Student[]
 }
 
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("student") // "student" | "faculty" | "admin"
+  studentId    String?  @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  student      Student? @relation(fields: [studentId], references: [roll], onDelete: SetNull)
+}
+
 model Student {
   roll         String   @id // Universal Subject/Member ID (Roll No, Employee ID, Badge ID)
   firstName    String
@@ -69,6 +82,7 @@ model Student {
   branch       Branch?       @relation(fields: [branchId], references: [id])
   year         Year?         @relation(fields: [yearId], references: [id])
   section      Section?      @relation(fields: [sectionId], references: [id])
+  user         User?
 
   attendances  Attendance[]
   punchKeys    PunchKey[]
@@ -104,6 +118,7 @@ model PunchKey {
   aaguid         String    @default("")
   hardwareBacked Boolean   @default(false)
   trustTier      Int       @default(0)
+  status         String    @default("ACTIVE") // "ACTIVE" | "REVOKED"
   revokedAt      DateTime?
   createdAt      DateTime  @default(now())
 

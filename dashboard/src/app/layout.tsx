@@ -13,12 +13,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QR Attendance Dashboard",
+  title: "Faculty Terminal • PunchOS Biometric Attendance",
   description:
-    "Real-time faculty dashboard for the QR Attendance System — live attendance feed, analytics, and rotating QR codes.",
+    "Real-time faculty camera scanner terminal for PunchOS — zero-trust biometric attendance, live SSE event feed, and RFC 6962 Merkle audit tree.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"

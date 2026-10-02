@@ -34,7 +34,16 @@ export default function PunchScreen({ keyPair, kid, sid, onLogout }: PunchScreen
   const [punchCount, setPunchCount] = useState(0);
   const timerRef = useRef<number | null>(null);
 
-  const rollNumber = sid.split(":")[2] ?? sid;
+  const parts = sid.split(":");
+  const orgSlug = parts.length >= 3 ? parts[1] : "campus";
+  const rollNumber = parts.length >= 3 ? parts[2] : parts[parts.length - 1];
+  const orgNames: Record<string, string> = {
+    campus: "🎓 University Campus",
+    cultfit: "🏋️ Cult.fit Gym",
+    enterprise: "🏢 Tech Enterprise",
+    web3: "🎟️ Web3 DAO",
+  };
+  const activeOrgName = orgNames[orgSlug] || orgSlug;
 
   const renderSlot = useCallback(async () => {
     const now = serverNow();
@@ -83,7 +92,7 @@ export default function PunchScreen({ keyPair, kid, sid, onLogout }: PunchScreen
     <main className="punch-shell">
       <header className="punch-header">
         <div>
-          <p className="punch-kicker">Show this code to the scanner</p>
+          <p className="punch-kicker">{activeOrgName} • Show code to scanner</p>
           <h1 className="punch-title">{rollNumber}</h1>
         </div>
         <button className="btn-ghost" onClick={onLogout}>

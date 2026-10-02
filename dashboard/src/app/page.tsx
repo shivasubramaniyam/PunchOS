@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { QrCode, Wifi, WifiOff, ShieldCheck, BookOpen, Code2 } from "lucide-react";
+import { QrCode, Wifi, WifiOff, ShieldCheck, BookOpen, Code2, LogOut, UserCheck } from "lucide-react";
 import Charts from "@/components/Charts";
 import LiveFeed from "@/components/LiveFeed";
 import PunchScanner from "@/components/PunchScanner";
@@ -11,11 +11,13 @@ import StudentManager from "@/components/StudentManager";
 import OrgModeSwitcher, { ORG_MODES, type OrgMode } from "@/components/OrgModeSwitcher";
 import MerkleAuditModal from "@/components/MerkleAuditModal";
 import EmbedSdkModal from "@/components/embed/EmbedSdkModal";
+import FacultyAuthModal from "@/components/FacultyAuthModal";
 import { api, API_BASE, resolveApiBase } from "@/lib/api";
 import { useLiveEvents } from "@/lib/useLiveEvents";
 import type { AttendanceRecord, LiveEvent, Stats, Student } from "@/lib/types";
 
 export default function DashboardPage() {
+  const [facultyUser, setFacultyUser] = useState<{ name: string; email: string; role: string } | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -24,6 +26,15 @@ export default function DashboardPage() {
   const [orgMode, setOrgMode] = useState<OrgMode>("campus");
   const [isMerkleModalOpen, setIsMerkleModalOpen] = useState(false);
   const [isEmbedModalOpen, setIsEmbedModalOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("punch.faculty_user");
+      if (stored) setFacultyUser(JSON.parse(stored));
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const todayFormatted = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -150,7 +161,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 min-h-screen bg-zinc-950 text-zinc-100">
+    <main className="mx-auto max-w-8xl space-y-6 p-4 sm:p-6 min-h-screen bg-zinc-950 text-zinc-100">
       {/* Top Header & Multi-Tenant Switcher */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-800/80 pb-5">
         <div className="flex items-center gap-3">
@@ -215,7 +226,7 @@ export default function DashboardPage() {
 
           {/* Connection Status Badge */}
           <span
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border ${
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium border ${
               connected
                 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                 : "bg-zinc-800 text-zinc-400 border-zinc-700"
@@ -228,6 +239,25 @@ export default function DashboardPage() {
             )}
             {connected ? "Live Terminal" : "Offline"}
           </span>
+
+          {/* Authenticated Faculty User Pill */}
+          {facultyUser ? (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
+              <UserCheck className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="font-semibold">{facultyUser.name || facultyUser.email}</span>
+              <button
+                onClick={() => {
+                  localStorage.removeItem("punch.faculty_token");
+                  localStorage.removeItem("punch.faculty_user");
+                  setFacultyUser(null);
+                }}
+                title="Sign Out Faculty"
+                className="ml-1 rounded p-1 hover:bg-rose-500/20 hover:text-rose-400 transition-colors cursor-pointer"
+              >
+                <LogOut className="h-3.5 w-3.5 text-zinc-400 hover:text-rose-400" />
+              </button>
+            </div>
+          ) : null}
         </div>
       </header>
 
@@ -263,6 +293,11 @@ export default function DashboardPage() {
         onClose={() => setIsEmbedModalOpen(false)}
         currentOrgSlug={orgMode}
       />
+
+      {/* Faculty Login Gate Modal */}
+      {!facultyUser ? (
+        <FacultyAuthModal onSuccess={(u) => setFacultyUser(u)} />
+      ) : null}
     </main>
   );
 }

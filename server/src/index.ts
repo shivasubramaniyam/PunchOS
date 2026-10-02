@@ -5,6 +5,7 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import { getLocalIp } from "./services/qr.js";
 import { registerSseClient, unregisterSseClient } from "./services/events.js";
+import authRouter from "./routes/auth.js";
 import studentsRouter from "./routes/students.js";
 import attendanceRouter from "./routes/attendance.js";
 import statsRouter from "./routes/stats.js";
@@ -58,6 +59,7 @@ app.get("/api/events", (req: Request, res: Response) => {
 });
 
 // 3. Mount API Routers
+app.use("/api/auth", authRouter);
 app.use("/api/students", studentsRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/stats", statsRouter);

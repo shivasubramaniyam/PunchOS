@@ -168,3 +168,66 @@ export interface PasskeyCheckResponse {
 export function verifyPasskeyAssertion(studentId: string, assertion: unknown): Promise<PasskeyCheckResponse> {
   return post<PasskeyCheckResponse>("/api/punch/passkey/check", { studentId, response: assertion });
 }
+
+// --- Auth -------------------------------------------------------------------
+
+export interface AuthResponse {
+  ok: boolean;
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    studentId?: string;
+  };
+}
+
+export function loginUser(credentials: { email?: string; studentId?: string; password: string }): Promise<AuthResponse> {
+  return post<AuthResponse>("/api/auth/login", credentials);
+}
+
+async function get<T>(path: string): Promise<T> {
+  const res = await fetch(`${getApiBase()}${path}`, { cache: "no-store" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      (data as { error?: string }).error ?? `Request failed (${res.status})`
+    );
+  }
+  return data as T;
+}
+
+export function registerUser(data: { email: string; password: string; name: string; role?: string; studentId?: string }): Promise<AuthResponse> {
+  return post<AuthResponse>("/api/auth/register", data);
+}
+
+// --- Student Profile & Stats -------------------------------------------------
+
+export interface StudentProfile {
+  roll: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  email: string;
+  branch: string;
+  year: number | null;
+  section: string;
+}
+
+export function fetchStudentProfile(roll: string): Promise<{ student: StudentProfile }> {
+  return get<{ student: StudentProfile }>(`/api/students/${encodeURIComponent(roll)}`);
+}
+
+export interface StudentAttendanceStats {
+  roll: string;
+  totalClasses: number;
+  attendedClasses: number;
+  attendanceRate: number;
+  streakDays: number;
+  history: Array<{ id: number; date: string; markedAt: string; method: string }>;
+}
+
+export function fetchStudentStats(roll: string): Promise<StudentAttendanceStats> {
+  return get<StudentAttendanceStats>(`/api/attendance/student/${encodeURIComponent(roll)}`);
+}
